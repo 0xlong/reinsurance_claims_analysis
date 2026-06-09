@@ -1,6 +1,10 @@
 # 🛡️ Risktec — Motor Insurance Pricing & Underwriting Copilot
 
-A full-stack insurance data engineering and AI project that builds a governed data pipeline and an interactive underwriting tool for motor third-party liability pricing. The system predicts **pure premium** (frequency × severity) for motor policies using XGBoost, explains risk drivers with SHAP, and delivers results through a Streamlit dashboard — demonstrating an insurance solution that happens to use ML, not just an ML exercise.
+A full-stack insurance data engineering and AI project that builds a governed data pipeline and an interactive underwriting tool for motor third-party liability pricing. The system predicts **pure premium** (frequency × severity) for motor policies using XGBoost, explains risk drivers with SHAP, and delivers results through a Streamlit dashboard.
+
+---
+
+[reinsurance_claims_analysis_video.webm](https://github.com/user-attachments/assets/aae3d87b-ffcf-43ca-bdaa-104adf5e2851)
 
 ---
 
@@ -79,8 +83,7 @@ pip install -r requirements.txt
 
 The data has to be downloaded csvs from Kaggle first:
 
-- https://www.kaggle.com/datasets/jesussanchezluengas/fre-mtpl2-dataset?select=freMTPL2sev
-- https://www.kaggle.com/datasets/jesussanchezluengas/fre-mtpl2-dataset?select=freMTPL2freq
+
 
 ```bash
 python ingest_data.py
@@ -149,7 +152,9 @@ Regulators and underwriters need to understand _why_ a premium was set at a cert
 The project uses the French motor third-party liability dataset (`freMTPL2`) from OpenML:
 
 - **Frequency data** (`freMTPL2freq`, OpenML ID 41214): 678,013 policies with risk features (driver age, vehicle power, bonus/malus, region, etc.) and claim counts.
+  (https://www.kaggle.com/datasets/jesussanchezluengas/fre-mtpl2-dataset?select=freMTPL2freq)
 - **Severity data** (`freMTPL2sev`, OpenML ID 41215): individual claim amounts linked to policies by ID.
+  (https://www.kaggle.com/datasets/jesussanchezluengas/fre-mtpl2-dataset?select=freMTPL2sev)
 - **Regions metadata**: French administrative regions with population data.
 
 ---
