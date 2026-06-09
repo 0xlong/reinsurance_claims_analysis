@@ -1,0 +1,4 @@
+# Exclude data directory and its contents from Claude tools and wrappers
+data/
+data/**
+**/data/**
