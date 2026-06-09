@@ -313,7 +313,56 @@ def fetch_portfolio_data(_freq_pipeline, _sev_pipeline):
     # Sort regions by exposure for concentration analysis
     region_agg = region_agg.sort_values(by='total_exposure', ascending=False).reset_index(drop=True)
     
-    return age_agg, region_agg, df['exposure'].sum(), len(df), df['claim_count'].sum(), df['total_claim_amount'].sum()
+    # 3. Bonus/Malus Analysis Grouping
+    df['bm_bucket'] = pd.cut(
+        df['bonus_malus'],
+        bins=[0, 59, 99, 149, 350],
+        labels=['50-59 (Best)', '60-99 (Bonus)', '100-149 (Neutral/Malus)', '150+ (High Malus)']
+    )
+    
+    bm_agg = df.groupby('bm_bucket', observed=False).agg(
+        total_exposure=('exposure', 'sum'),
+        actual_claims=('claim_count', 'sum'),
+        actual_losses=('total_claim_amount', 'sum'),
+        expected_claims=('expected_claims', 'sum'),
+        expected_losses=('expected_losses', 'sum')
+    ).reset_index()
+    
+    bm_agg['observed_pure_premium'] = bm_agg['actual_losses'] / bm_agg['total_exposure']
+    bm_agg['predicted_pure_premium'] = bm_agg['expected_losses'] / bm_agg['total_exposure']
+    
+    # 4. Vehicle Power Analysis Grouping
+    df['power_bucket'] = pd.cut(
+        df['vehicle_power'],
+        bins=[0, 5, 7, 10, 15],
+        labels=['4-5 (Low)', '6-7 (Mid)', '8-10 (High)', '11+ (Very High)']
+    )
+    
+    power_agg = df.groupby('power_bucket', observed=False).agg(
+        total_exposure=('exposure', 'sum'),
+        actual_claims=('claim_count', 'sum'),
+        actual_losses=('total_claim_amount', 'sum'),
+        expected_claims=('expected_claims', 'sum'),
+        expected_losses=('expected_losses', 'sum')
+    ).reset_index()
+    
+    power_agg['observed_pure_premium'] = power_agg['actual_losses'] / power_agg['total_exposure']
+    power_agg['predicted_pure_premium'] = power_agg['expected_losses'] / power_agg['total_exposure']
+    
+    # 5. Fuel Type Analysis Grouping
+    fuel_agg = df.groupby('fuel_type').agg(
+        total_exposure=('exposure', 'sum'),
+        actual_claims=('claim_count', 'sum'),
+        actual_losses=('total_claim_amount', 'sum'),
+        expected_claims=('expected_claims', 'sum'),
+        expected_losses=('expected_losses', 'sum')
+    ).reset_index()
+    
+    fuel_agg['observed_pure_premium'] = fuel_agg['actual_losses'] / fuel_agg['total_exposure']
+    fuel_agg['predicted_pure_premium'] = fuel_agg['expected_losses'] / fuel_agg['total_exposure']
+    
+    return (age_agg, region_agg, bm_agg, power_agg, fuel_agg,
+            df['exposure'].sum(), len(df), df['claim_count'].sum(), df['total_claim_amount'].sum())
 
 
 def make_minimal_bar_chart(x, y, text_vals, colors, x_title, y_title, orientation='h', height=300):
@@ -437,7 +486,7 @@ if models_loaded:
 
     # Render Portfolio Overview (Historical Analysis) expander
     with st.spinner("Analyzing historical portfolio data..."):
-        age_agg, region_agg, total_exposure, total_policies, total_claims, total_losses = fetch_portfolio_data(freq_pipeline, sev_pipeline)
+        age_agg, region_agg, bm_agg, power_agg, fuel_agg, total_exposure, total_policies, total_claims, total_losses = fetch_portfolio_data(freq_pipeline, sev_pipeline)
     
     with st.expander("📊 Portfolio Overview (Historical Analysis)", expanded=True):
         #st.markdown("#### 📈 Key Portfolio Metrics")
@@ -534,6 +583,76 @@ if models_loaded:
                     height=320
                 )
                 st.plotly_chart(fig_reg_pp, use_container_width=True)
+        
+        st.write("")
+        
+        # Row 4: Bonus/Malus & Vehicle Power Analysis
+        row4_col1, row4_col2 = st.columns(2)
+        
+        with row4_col1:
+            with st.container(border=True):
+                st.markdown("**Actual vs. Expected Pure Premium by Bonus/Malus**")
+                fig_bm_pp = make_grouped_bar_chart(
+                    categories=bm_agg['bm_bucket'],
+                    val1=bm_agg['observed_pure_premium'],
+                    val2=bm_agg['predicted_pure_premium'],
+                    name1="Observed PP",
+                    name2="Expected PP",
+                    colors=['#008bfb', '#ff0051'],
+                    y_title="Pure Premium (€)",
+                    height=320
+                )
+                st.plotly_chart(fig_bm_pp, use_container_width=True)
+        
+        with row4_col2:
+            with st.container(border=True):
+                st.markdown("**Actual vs. Expected Pure Premium by Vehicle Power**")
+                fig_power_pp = make_grouped_bar_chart(
+                    categories=power_agg['power_bucket'],
+                    val1=power_agg['observed_pure_premium'],
+                    val2=power_agg['predicted_pure_premium'],
+                    name1="Observed PP",
+                    name2="Expected PP",
+                    colors=['#008bfb', '#ff0051'],
+                    y_title="Pure Premium (€)",
+                    height=320
+                )
+                st.plotly_chart(fig_power_pp, use_container_width=True)
+        
+        st.write("")
+        
+        # Row 5: Fuel Type & Actual vs Expected Claims by Bonus/Malus
+        row5_col1, row5_col2 = st.columns(2)
+        
+        with row5_col1:
+            with st.container(border=True):
+                st.markdown("**Actual vs. Expected Pure Premium by Fuel Type**")
+                fig_fuel_pp = make_grouped_bar_chart(
+                    categories=fuel_agg['fuel_type'],
+                    val1=fuel_agg['observed_pure_premium'],
+                    val2=fuel_agg['predicted_pure_premium'],
+                    name1="Observed PP",
+                    name2="Expected PP",
+                    colors=['#008bfb', '#ff0051'],
+                    y_title="Pure Premium (€)",
+                    height=320
+                )
+                st.plotly_chart(fig_fuel_pp, use_container_width=True)
+        
+        with row5_col2:
+            with st.container(border=True):
+                st.markdown("**Actual vs. Expected Claims by Bonus/Malus**")
+                fig_bm_claims = make_grouped_bar_chart(
+                    categories=bm_agg['bm_bucket'],
+                    val1=bm_agg['actual_claims'],
+                    val2=bm_agg['expected_claims'],
+                    name1="Actual Claims",
+                    name2="Expected Claims",
+                    colors=['#008bfb', '#ff0051'],
+                    y_title="Number of Claims",
+                    height=320
+                )
+                st.plotly_chart(fig_bm_claims, use_container_width=True)
 
     with st.expander("⚙️ Underwriting Settings", expanded=False):
         with st.form("underwriting_form"):

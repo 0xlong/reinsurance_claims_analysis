@@ -77,6 +77,11 @@ pip install -r requirements.txt
 
 ### 3. Ingest Raw Data into DuckDB
 
+The data has to be downloaded csvs from Kaggle first:
+
+- https://www.kaggle.com/datasets/jesussanchezluengas/fre-mtpl2-dataset?select=freMTPL2sev
+- https://www.kaggle.com/datasets/jesussanchezluengas/fre-mtpl2-dataset?select=freMTPL2freq
+
 ```bash
 python ingest_data.py
 ```
@@ -92,6 +97,7 @@ cd ..
 ```
 
 This executes the full governed pipeline:
+
 - **Staging views** (`stg_policies`, `stg_claims`, `stg_regions`): clean types, standardize column names, apply data governance tests (exposure > 0, unique policy IDs, non-negative claim counts/amounts).
 - **Mart table** (`mart_pricing`): joins policies with aggregated claims and region metadata to produce the ML-ready analytical table.
 
@@ -102,6 +108,7 @@ python train_models.py
 ```
 
 This trains two XGBoost models and saves them as serialized scikit-learn pipelines:
+
 - **Frequency model** (`count:poisson`): predicts claim rate per exposure year.
 - **Severity model** (`reg:gamma`): predicts average claim cost given a claim occurred.
 - SHAP summary plots are generated and saved to `data/models/`.
@@ -113,6 +120,7 @@ streamlit run app/app.py
 ```
 
 The Streamlit app loads the trained pipelines and provides:
+
 - **Portfolio Overview**: historical KPIs, observed pure premium by age bucket, actual vs. expected claims, exposure concentration by region, and actual vs. expected pure premium by region.
 - **Underwriting Copilot**: enter policy risk features → get frequency, severity, and pure premium predictions with a SHAP waterfall explanation of the key risk drivers.
 
@@ -132,7 +140,7 @@ Insurance pricing separates "how often" (frequency) from "how much" (severity) b
 
 ### Why SHAP?
 
-Regulators and underwriters need to understand *why* a premium was set at a certain level. SHAP (SHapley Additive exPlanations) decomposes each prediction into the contribution of each feature, providing transparent, auditable explanations — critical for insurance compliance.
+Regulators and underwriters need to understand _why_ a premium was set at a certain level. SHAP (SHapley Additive exPlanations) decomposes each prediction into the contribution of each feature, providing transparent, auditable explanations — critical for insurance compliance.
 
 ---
 
@@ -150,11 +158,11 @@ The project uses the French motor third-party liability dataset (`freMTPL2`) fro
 
 A production version of this system would add:
 
-| Enhancement | Description |
-|---|---|
-| **GLM Baselines** | Poisson frequency and Gamma severity GLMs for actuarial benchmarking and regulatory comparison against the XGBoost models. |
-| **Reinsurance Treaty Extraction** | RAG/LLM-powered extraction of treaty clauses (limits, retention, reinstatements) from PDF contracts using Snowflake Cortex or similar. |
-| **Cloud Deployment** | Migration from local DuckDB to Snowflake with Dagster orchestration for scheduled data refreshes and model retraining. |
-| **API Serving Layer** | FastAPI model serving endpoint for integration with policy administration systems and real-time underwriting workflows. |
-| **CI/CD Pipeline** | GitHub Actions for automated dbt testing, model validation, and Streamlit deployment on every commit. |
-| **Monitoring & Drift** | Model performance monitoring dashboard tracking prediction drift, actual vs. expected ratios over time, and automated retraining triggers. |
+| Enhancement                       | Description                                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **GLM Baselines**                 | Poisson frequency and Gamma severity GLMs for actuarial benchmarking and regulatory comparison against the XGBoost models.                 |
+| **Reinsurance Treaty Extraction** | RAG/LLM-powered extraction of treaty clauses (limits, retention, reinstatements) from PDF contracts using Snowflake Cortex or similar.     |
+| **Cloud Deployment**              | Migration from local DuckDB to Snowflake with Dagster orchestration for scheduled data refreshes and model retraining.                     |
+| **API Serving Layer**             | FastAPI model serving endpoint for integration with policy administration systems and real-time underwriting workflows.                    |
+| **CI/CD Pipeline**                | GitHub Actions for automated dbt testing, model validation, and Streamlit deployment on every commit.                                      |
+| **Monitoring & Drift**            | Model performance monitoring dashboard tracking prediction drift, actual vs. expected ratios over time, and automated retraining triggers. |
