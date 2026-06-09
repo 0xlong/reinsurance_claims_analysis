@@ -44,8 +44,8 @@ def train_frequency_model(df, preprocessor, feature_cols):
     """Train the XGBoost Poisson Frequency Model."""
     print("\n--- Training Frequency Model (Poisson) ---")
     
-    # Target: claim_count, Weight: exposure
-    y = df['claim_count'].values
+    # Target: claim frequency rate (claim_count / exposure)
+    y = (df['claim_count'] / df['exposure']).values
     weights = df['exposure'].values
     X_raw = df[feature_cols]
     
@@ -61,9 +61,14 @@ def train_frequency_model(df, preprocessor, feature_cols):
         X_df, y, weights, test_size=0.2, random_state=42
     )
     
+    # Set base_score to the weighted average claim frequency (total claims / total exposure)
+    # This aligns the starting prediction with the global portfolio rate
+    portfolio_frequency = df['claim_count'].sum() / df['exposure'].sum()
+    
     # XGBoost Regressor with Poisson Objective
     freq_model = xgb.XGBRegressor(
         objective='count:poisson',
+        base_score=portfolio_frequency,
         n_estimators=100,
         max_depth=5,
         learning_rate=0.08,
@@ -119,9 +124,14 @@ def train_severity_model(df, preprocessor, feature_cols):
         X_df, y, test_size=0.2, random_state=42
     )
     
+    # Set base_score to the mean of training severities (average claim amount)
+    # This prevents gradient explosion/unstable splits due to the log-link function
+    mean_severity = y_train.mean()
+    
     # XGBoost Regressor with Gamma Objective
     sev_model = xgb.XGBRegressor(
         objective='reg:gamma',
+        base_score=mean_severity,
         n_estimators=80,
         max_depth=4,
         learning_rate=0.05,

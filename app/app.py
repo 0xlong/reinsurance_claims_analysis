@@ -137,7 +137,7 @@ def draw_plotly_bar(shap_values, feature_names, preprocessed_row, raw_row, max_d
         textfont=dict(
             family="Inter, sans-serif",
             size=12,
-            color=text_colors
+            color='white'
         ),
         cliponaxis=False # Ensure text labels aren't clipped off
     ))
@@ -156,8 +156,8 @@ def draw_plotly_bar(shap_values, feature_names, preprocessed_row, raw_row, max_d
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(
             title="SHAP value",
-            titlefont=dict(family="Inter, sans-serif", size=13),
-            tickfont=dict(family="Inter, sans-serif", size=11),
+            titlefont=dict(family="Inter, sans-serif", size=13, color='white'),
+            tickfont=dict(family="Inter, sans-serif", size=11, color='white'),
             showgrid=False,
             zeroline=True,
             zerolinecolor='rgba(128, 128, 128, 0.8)',
@@ -165,7 +165,7 @@ def draw_plotly_bar(shap_values, feature_names, preprocessed_row, raw_row, max_d
             range=[min_x - padding, max_x + padding]
         ),
         yaxis=dict(
-            tickfont=dict(family="Inter, sans-serif", size=12),
+            tickfont=dict(family="Inter, sans-serif", size=12, color='white'),
             showgrid=True,
             gridcolor='rgba(128, 128, 128, 0.15)',
             griddash='dot',
@@ -258,39 +258,165 @@ def load_models():
     return freq_pipeline, sev_pipeline
 
 @st.cache_data
-def fetch_portfolio_metrics():
-    """Query high-level portfolio metrics from DuckDB."""
+def fetch_portfolio_data(_freq_pipeline, _sev_pipeline):
+    """Query data and pre-calculate predictions for historical portfolio analysis."""
     conn = duckdb.connect(DB_PATH)
-    
-    # Portfolio summaries
-    summary = conn.execute("""
-        SELECT 
-            COUNT(*) as total_policies,
-            SUM(exposure) as total_exposure,
-            SUM(claim_count) as total_claims,
-            SUM(total_claim_amount) as total_losses
-        FROM mart_pricing
-    """).fetchdf()
-    
-    # Loss ratio by driver age buckets
-    age_analysis = conn.execute("""
-        SELECT 
-            CASE 
-                WHEN driver_age < 25 THEN '18-24'
-                WHEN driver_age < 40 THEN '25-39'
-                WHEN driver_age < 60 THEN '40-59'
-                ELSE '60+' 
-            END as age_bucket,
-            SUM(exposure) as total_exposure,
-            SUM(claim_count) as total_claims,
-            SUM(total_claim_amount) as total_losses
-        FROM mart_pricing
-        GROUP BY 1
-        ORDER BY 1
-    """).fetchdf()
-    
+    df = conn.execute("SELECT * FROM mart_pricing").fetchdf()
     conn.close()
-    return summary, age_analysis
+    
+    # Feature list matching the model's training columns
+    feature_cols = [
+        'area_code', 'vehicle_power', 'vehicle_age', 'driver_age', 
+        'bonus_malus', 'vehicle_brand', 'fuel_type', 'population_density', 
+        'region_code', 'region_population'
+    ]
+    
+    # Run predictions on the historical dataset
+    df['pred_frequency'] = _freq_pipeline.predict(df[feature_cols])
+    df['pred_severity'] = _sev_pipeline.predict(df[feature_cols])
+    df['pred_pure_premium'] = df['pred_frequency'] * df['pred_severity']
+    
+    # Calculate policy-level expected quantities
+    df['expected_claims'] = df['pred_frequency'] * df['exposure']
+    df['expected_losses'] = df['pred_pure_premium'] * df['exposure']
+    
+    # 1. Age Analysis Grouping
+    df['age_bucket'] = pd.cut(
+        df['driver_age'], 
+        bins=[0, 24, 39, 59, 120], 
+        labels=['18-24', '25-39', '40-59', '60+']
+    )
+    
+    age_agg = df.groupby('age_bucket', observed=False).agg(
+        total_exposure=('exposure', 'sum'),
+        actual_claims=('claim_count', 'sum'),
+        actual_losses=('total_claim_amount', 'sum'),
+        expected_claims=('expected_claims', 'sum'),
+        expected_losses=('expected_losses', 'sum')
+    ).reset_index()
+    
+    age_agg['observed_pure_premium'] = age_agg['actual_losses'] / age_agg['total_exposure']
+    age_agg['predicted_pure_premium'] = age_agg['expected_losses'] / age_agg['total_exposure']
+    
+    # 2. Region Analysis Grouping
+    region_agg = df.groupby(['region_code', 'region_name']).agg(
+        total_exposure=('exposure', 'sum'),
+        actual_claims=('claim_count', 'sum'),
+        actual_losses=('total_claim_amount', 'sum'),
+        expected_claims=('expected_claims', 'sum'),
+        expected_losses=('expected_losses', 'sum')
+    ).reset_index()
+    
+    region_agg['observed_pure_premium'] = region_agg['actual_losses'] / region_agg['total_exposure']
+    region_agg['predicted_pure_premium'] = region_agg['expected_losses'] / region_agg['total_exposure']
+    
+    # Sort regions by exposure for concentration analysis
+    region_agg = region_agg.sort_values(by='total_exposure', ascending=False).reset_index(drop=True)
+    
+    return age_agg, region_agg, df['exposure'].sum(), len(df), df['claim_count'].sum(), df['total_claim_amount'].sum()
+
+
+def make_minimal_bar_chart(x, y, text_vals, colors, x_title, y_title, orientation='h', height=300):
+    """Generate a clean, modern, gridless bar chart mimicking SHAP styling with white labels."""
+    fig = go.Figure(go.Bar(
+        x=x,
+        y=y,
+        orientation=orientation,
+        marker=dict(
+            color=colors,
+            line=dict(width=0)
+        ),
+        text=text_vals,
+        textposition='outside',
+        textfont=dict(
+            family="Inter, sans-serif",
+            size=10,
+            color='white'
+        ),
+        cliponaxis=False
+    ))
+    
+    fig.update_layout(
+        margin=dict(l=10, r=40, t=10, b=10),
+        height=height,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(
+            title=x_title,
+            titlefont=dict(family="Inter, sans-serif", size=12, color='white'),
+            tickfont=dict(family="Inter, sans-serif", size=10, color='white'),
+            showgrid=False,
+            zeroline=True,
+            zerolinecolor='rgba(128, 128, 128, 0.3)',
+            showticklabels=True
+        ),
+        yaxis=dict(
+            title=y_title,
+            titlefont=dict(family="Inter, sans-serif", size=12, color='white'),
+            tickfont=dict(family="Inter, sans-serif", size=11, color='white'),
+            showgrid=True,
+            gridcolor='rgba(128, 128, 128, 0.1)',
+            griddash='dot',
+            automargin=True
+        ),
+        showlegend=False
+    )
+    return fig
+
+
+def make_grouped_bar_chart(categories, val1, val2, name1="Actual", name2="Expected", colors=['#008bfb', '#ff0051'], y_title="", height=300):
+    """Generate a clean, side-by-side bar chart for comparing actual vs expected with white labels."""
+    fig = go.Figure(data=[
+        go.Bar(
+            name=name1, 
+            x=categories, 
+            y=val1, 
+            marker=dict(color=colors[0], line=dict(width=0)),
+            text=[f"€{v:,.0f}" if "PP" in name1 else f"{v:,.0f}" for v in val1],
+            textposition='outside',
+            textfont=dict(family="Inter, sans-serif", size=10, color='white')
+        ),
+        go.Bar(
+            name=name2, 
+            x=categories, 
+            y=val2, 
+            marker=dict(color=colors[1], line=dict(width=0)),
+            text=[f"€{v:,.0f}" if "PP" in name2 else f"{v:,.0f}" for v in val2],
+            textposition='outside',
+            textfont=dict(family="Inter, sans-serif", size=10, color='white')
+        )
+    ])
+    
+    fig.update_layout(
+        barmode='group',
+        margin=dict(l=10, r=10, t=30, b=10),
+        height=height,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(
+            tickfont=dict(family="Inter, sans-serif", size=11, color='white'),
+            showgrid=False
+        ),
+        yaxis=dict(
+            title=y_title,
+            titlefont=dict(family="Inter, sans-serif", size=12, color='white'),
+            tickfont=dict(family="Inter, sans-serif", size=10, color='white'),
+            showgrid=True,
+            gridcolor='rgba(128, 128, 128, 0.1)',
+            griddash='dot',
+            automargin=True
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(family="Inter, sans-serif", size=11, color='white')
+        )
+    )
+    return fig
+
 
 # Initialize app state & load pipelines
 try:
@@ -309,7 +435,107 @@ if models_loaded:
     if 'calculated' not in st.session_state:
         st.session_state.calculated = False
 
-    with st.expander("⚙️ Underwriting Settings", expanded=not st.session_state.calculated):
+    # Render Portfolio Overview (Historical Analysis) expander
+    with st.spinner("Analyzing historical portfolio data..."):
+        age_agg, region_agg, total_exposure, total_policies, total_claims, total_losses = fetch_portfolio_data(freq_pipeline, sev_pipeline)
+    
+    with st.expander("📊 Portfolio Overview (Historical Analysis)", expanded=True):
+        #st.markdown("#### 📈 Key Portfolio Metrics")
+        kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+        with kpi_col1:
+            with st.container(border=True):
+                st.metric("Total Policies", f"{total_policies:,}", help="Number of policies in the database")
+        with kpi_col2:
+            with st.container(border=True):
+                st.metric("Total Exposure (Years)", f"{total_exposure:,.2f}", help="Sum of risk exposure time in years")
+        with kpi_col3:
+            with st.container(border=True):
+                st.metric("Total Claims", f"{total_claims:,}", help="Total number of claims filed historically")
+        with kpi_col4:
+            with st.container(border=True):
+                observed_pp = total_losses / total_exposure
+                st.metric("Observed Pure Premium", f"€{observed_pp:,.2f}", help="Historical claim cost per exposure year")
+                
+        st.write("")
+        
+        # Row 2: Driver Age Analysis
+        #st.markdown("#### 👥 Driver Age Demographics & Pricing Performance")
+        row2_col1, row2_col2 = st.columns(2)
+        
+        with row2_col1:
+            with st.container(border=True):
+                st.markdown("**Observed Pure Premium by Driver Age Bucket**")
+                #st.write("Average historical claims cost per unit of exposure.")
+                fig_age_pp = make_minimal_bar_chart(
+                    x=age_agg['age_bucket'],
+                    y=age_agg['observed_pure_premium'],
+                    text_vals=[f"€{v:,.2f}" for v in age_agg['observed_pure_premium']],
+                    colors='#ff0051',  # SHAP pink
+                    x_title="Driver Age Bucket",
+                    y_title="Pure Premium (€)",
+                    orientation='v',
+                    height=300
+                )
+                st.plotly_chart(fig_age_pp, use_container_width=True)
+                
+        with row2_col2:
+            with st.container(border=True):
+                st.markdown("**Actual vs. Expected Claims by Driver Age Bucket**")
+                #st.write("How the XGBoost frequency model predictions compare to historical reality.")
+                fig_age_claims = make_grouped_bar_chart(
+                    categories=age_agg['age_bucket'],
+                    val1=age_agg['actual_claims'],
+                    val2=age_agg['expected_claims'],
+                    name1="Actual Claims",
+                    name2="Expected Claims",
+                    colors=['#008bfb', '#ff0051'],  # SHAP blue, SHAP pink
+                    y_title="Number of Claims",
+                    height=300
+                )
+                st.plotly_chart(fig_age_claims, use_container_width=True)
+                
+        st.write("")
+        
+        # Row 3: Regional Risk Profiling
+        #st.markdown("#### 🗺️ Regional Risk Profiling")
+        row3_col1, row3_col2 = st.columns(2)
+        
+        # Take Top 8 regions for cleaner visuals
+        top_regions = region_agg.head(8).copy()
+        
+        with row3_col1:
+            with st.container(border=True):
+                st.markdown("**Exposure Concentration by Region (Top 8)**")
+                #st.write("Where our risk exposure is geographically concentrated.")
+                fig_reg_exp = make_minimal_bar_chart(
+                    x=top_regions['total_exposure'],
+                    y=top_regions['region_name'],
+                    text_vals=[f"{v:,.0f} yr" for v in top_regions['total_exposure']],
+                    colors='#008bfb',  # SHAP blue
+                    x_title="Total Exposure (Years)",
+                    y_title="Region Name",
+                    orientation='h',
+                    height=320
+                )
+                st.plotly_chart(fig_reg_exp, use_container_width=True)
+                
+        with row3_col2:
+            with st.container(border=True):
+                st.markdown("**Actual vs. Expected Pure Premium by Region (Top 8)**")
+                #st.write("Observed loss cost per exposure vs. the model's average pure premium prediction.")
+                fig_reg_pp = make_grouped_bar_chart(
+                    categories=top_regions['region_name'],
+                    val1=top_regions['observed_pure_premium'],
+                    val2=top_regions['predicted_pure_premium'],
+                    name1="Observed PP",
+                    name2="Expected PP",
+                    colors=['#008bfb', '#ff0051'],  # SHAP blue, SHAP pink
+                    y_title="Pure Premium (€)",
+                    height=320
+                )
+                st.plotly_chart(fig_reg_pp, use_container_width=True)
+
+    with st.expander("⚙️ Underwriting Settings", expanded=False):
         with st.form("underwriting_form"):
             col1, col2, col3 = st.columns(3)
             
@@ -381,7 +607,7 @@ if models_loaded:
             st.write("")
             with st.container(border=True):
                 st.markdown("#### 🔍 Risk Explanation (SHAP)")
-                st.write("How different factors impact the pure premium.")
+                #st.write("How different factors impact the pure premium.")
                 
                 preprocessor_freq = freq_pipeline.named_steps['preprocessor']
                 model_freq = freq_pipeline.named_steps['model']

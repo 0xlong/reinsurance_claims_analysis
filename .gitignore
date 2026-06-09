@@ -33,6 +33,7 @@ data/raw/*.csv
 data/*.db
 data/models/*.pkl
 data/models/*.json
+data/
 
 # dbt
 dbt_project/target/
