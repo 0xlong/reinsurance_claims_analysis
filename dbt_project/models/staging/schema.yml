@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_policies
+    description: "Cleansed and type-cast frequency and exposure data from the raw policy intake bordereaux (raw_policies)."
+    columns:
+      - name: policy_id
+        description: "Unique policy identifier (Primary Key)."
+        tests:
+          - unique
+          - not_null
+
+      - name: claim_count
+        description: "Number of claims reported on this policy."
+
+      - name: exposure
+        description: "Duration of the risk coverage in fractions of a year (e.g., 1.0 represents 1 full year of exposure)."
+
+  - name: stg_claims
+    description: "Aggregated claim amounts by policy ID from raw_claims. Pre-aggregated because a policy can have multiple claims, but the pricing model requires policy-level rows."
+    columns:
+      - name: policy_id
+        description: "Unique policy identifier (Primary Key)."
+        tests:
+          - unique
+          - not_null
+
+      - name: total_claim_amount
+        description: "The total sum of claim amounts incurred by this policy."
+      
+      - name: claim_event_count
+        description: "Number of distinct claim events associated with this policy."
+
+  - name: stg_regions
+    description: "Cleansed region lookup containing region names and population volumes."
+    columns:
+      - name: region_code
+        description: "Primary Key. The alphanumeric code of the region (e.g. R11)."
+        tests:
+          - unique
+          - not_null
+
+      - name: region_name
+        description: "Friendly name of the region."
+        tests:
+          - not_null
+
+      - name: region_population
+        description: "The population volume of the region (prior to 2016 French region reform)."
+

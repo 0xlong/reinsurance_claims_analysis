@@ -36,7 +36,7 @@ In the dataset `freMTPL2freq` risk features and claim numbers were collected for
 - VehBrand: The car brand (unknown categories).
 - VehGas: The car gas, Diesel or regular.
 - Density: The density of inhabitants (number of inhabitants per km2) in the city the driver of the car lives in.
-- Region: The policy regions in France (based on a standard French classification)
+- Region: regions in France (prior to 2016)
 
 ### Data Context: Frequency & Severity
 

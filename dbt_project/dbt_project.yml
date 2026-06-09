@@ -1,0 +1,26 @@
+name: 'reinsurance_pricing'
+version: '1.0.0'
+config-version: 2
+
+# This points to the profile defined in profiles.yml
+profile: 'reinsurance_profile'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  reinsurance_pricing:
+    # Staging models will be views (data governance & cleaning)
+    staging:
+      +materialized: view
+    # Mart models will be tables (analytical / ML ready)
+    marts:
+      +materialized: table

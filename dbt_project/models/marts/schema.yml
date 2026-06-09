@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: mart_pricing
+    description: "The final analytical dataset for modeling motor third-party liability pricing. It joins policy exposures with aggregated claims and adds derived targets for ML (has_claim, avg_claim_amount)."
+    columns:
+      - name: policy_id
+        description: "Primary key. Unique policy identifier."
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('stg_policies')
+              field: policy_id
+
+      - name: exposure
+        description: "The portion of the year the policy was active (e.g., 0.5 for half a year). Used as sample weight in frequency modeling."
+
+      - name: area_code
+        description: "Area code of the policyholder (A to F)."
+
+      - name: vehicle_power
+        description: "The power of the vehicle (grouped)."
+
+      - name: vehicle_age
+        description: "Age of the vehicle in years."
+
+      - name: driver_age
+        description: "Age of the driver in years."
+
+      - name: bonus_malus
+        description: "Bonus/Malus rating (French system: 50 is best, 100 is neutral, >100 is bad)."
+
+      - name: vehicle_brand
+        description: "The brand/group of the vehicle."
+
+      - name: fuel_type
+        description: "Fuel type of the vehicle (Regular or Diesel)."
+
+      - name: population_density
+        description: "Density of inhabitants per square km in the policyholder's region."
+
+      - name: region_code
+        description: "The administrative region code."
+        tests:
+          - relationships:
+              to: ref('stg_regions')
+              field: region_code
+
+      - name: region_name
+        description: "The official name of the French region (pre-2016 classification)."
+
+      - name: region_population
+        description: "The population volume of the region."
+
+      - name: claim_count
+        description: "Number of claims reported during the exposure period."
+
+      - name: total_claim_amount
+        description: "Sum of all claim amounts associated with this policy. Zero for policies without claims."
+
+      - name: has_claim
+        description: "Boolean flag indicating if the policy has at least one claim."
+
+      - name: avg_claim_amount
+        description: "Average claim amount for the policy (total_claim_amount / claim_count). Used as the target for severity modeling."

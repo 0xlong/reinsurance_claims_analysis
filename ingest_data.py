@@ -10,6 +10,7 @@ def load_into_duckdb():
     """Load the raw CSV files into DuckDB tables."""
     freq_path = os.path.join(RAW_DIR, 'freMTPL2freq.csv')
     sev_path = os.path.join(RAW_DIR, 'freMTPL2sev.csv')
+    regions_path = os.path.join(RAW_DIR, 'regions.csv')
     
     print(f"Connecting to DuckDB at {DB_PATH}...")
     conn = duckdb.connect(DB_PATH)
@@ -21,6 +22,10 @@ def load_into_duckdb():
     # Load severity data (claims)
     print("Loading severity data into DuckDB table 'raw_claims'...")
     conn.execute(f"CREATE TABLE IF NOT EXISTS raw_claims AS SELECT * FROM read_csv_auto('{sev_path}')")
+    
+    # Load regions metadata (delimited by semi-colon)
+    print("Loading regions data into DuckDB table 'raw_regions'...")
+    conn.execute(f"CREATE TABLE IF NOT EXISTS raw_regions AS SELECT * FROM read_csv_auto('{regions_path}', delim=';')")
     
     # Verify tables
     tables = conn.execute("SHOW TABLES").fetchall()

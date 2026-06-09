@@ -1,0 +1,9 @@
+reinsurance_profile:
+  outputs:
+    dev:
+      type: duckdb
+      # Path is relative to the directory where dbt is run (we will run inside dbt_project/)
+      path: '../data/insurance.db'
+      schema: main
+      threads: 4
+  target: dev
