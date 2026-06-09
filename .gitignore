@@ -45,3 +45,7 @@ dbt_project/logs/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Project Context
+project_context/
+
