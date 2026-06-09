@@ -1,4 +1,0 @@
-# Exclude data directory and its contents from Gemini CLI
-data/
-data/**
-**/data/**
