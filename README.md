@@ -1,4 +1,4 @@
-# 🛡️ Risktec — Motor Insurance Pricing & Underwriting Copilot
+# 🛡️ Insurance (Actuary) modeling — Motor Insurance Pricing & Underwriting Copilot
 
 A full-stack insurance data engineering and AI project that builds a governed data pipeline and an interactive underwriting tool for motor third-party liability pricing. The system predicts **pure premium** (frequency × severity) for motor policies using XGBoost, explains risk drivers with SHAP, and delivers results through a Streamlit dashboard.
 
